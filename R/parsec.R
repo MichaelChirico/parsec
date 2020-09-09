@@ -12,13 +12,43 @@ parsec = function(file) {
 
   # strip out top-level expressions
   while (char_i <= length(src)) {
-    if (char_i > n_char) break
     # pre-processor directives
     if (src[char_i] == '#') {
       end_expr = find_end_directive(src, char_i)
       exprs[[expr_i]] = src[char_i:end_expr]
+      expr_i = expr_i+1L
       char_i = end_expr+1L
+    # "regular' C expressions
     } else {
+      end_expr = char_i
+      while (end_expr <= n_char) {
+        end_expr = skip_white(src, skip_identifier(src, end_expr))
+        # function call definition, or function prototype
+        if (src[end_expr] == '(') {
+          n_lparen = 1L
+          while (n_lparen > 0L) {
+            end_expr = end_expr + 1L
+            if (src[end_expr] == ')') n_lparen = n_lparen-1L
+            else if (src[end_expr] == '(') n_lparen = n_lparen+1L
+          }
+          end_expr = skip_white(src, end_expr+1L)
+          # function call definition
+          if (src[end_expr] == '{') {
+            n_lbracket = 1L
+            while (n_lbracket > 0L) {
+              end_expr = end_expr + 1L
+              if (src[end_expr] == '}') n_lbracket = n_lbracket-1L
+              else if (src[end_expr] == '{') n_lbracket = n_lbracket+1L
+            }
+          # function prototype
+          } else if (src[end_expr] != ';') stop("I'm not sure this is possible?")
+          exprs[[expr_i]] = src[char_i:end_expr]
+          expr_i = expr_i+1L
+          char_i = end_expr+1L
+          break
+        } else if (src[end_expr] == '{') {
+        }
+      }
     }
     char_i = skip_white(char_i)
   }
@@ -60,11 +90,23 @@ preprocess = function(txt) {
   txt
 }
 
+WHITESPACE_REX = '[ \t\n]'
 # move the "cursor" along until non-whitespace is found.
 #   intended to be used at the beginning of an expression
 skip_white = function(txt, i) {
   n = length(txt)
-  while (i <= n && txt[i] %in% c(' ', '\t', '\n')) {i = i+1L}
+  while (i <= n && grepl(WHITESPACE_REX, txt[i])) {i = i+1L}
+  return(i)
+}
+
+# reference https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Identifiers
+IDENTIFIER_REX0 = '[a-zA-Z_]'    # initial character
+IDENTIFIER_REX1 = '[a-zA-Z_0-9]' # subsequent characters
+skip_identifier = function(txt, i) {
+  if (!grepl(IDENTIFIER_REX0, txt[i])) return(i)
+  i = i+1L
+  n = length(txt)
+  while (i <= n && grepl(IDENTIFIER_REX1, txt[i])) { i=i+1L }
   return(i)
 }
 
@@ -90,6 +132,3 @@ find_end_directive = function(txt, i) {
   while (txt[i] != '\n') { i=i+1L }
   return( i-1L )
 }
-
-# reference https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Identifiers
-INDENTIFIER_REX = '[a-zA-Z_][a-zA-Z_0-9]*'
