@@ -2,13 +2,13 @@ parsec = function(file) {
   src = strsplit(readChar(file, file.info(file)$size), NULL)[[1L]]
   # logic below will assume terminal newline
   if (tail(src, 1L) != '\n') src = c(src, '\n')
-  src = skip_white(preprocess(src))
-
+  src = preprocess(src)
   n_char = length(src)
 
   # (i think) conservative guess of 40 characters/expression up front
   exprs = vector('list', n_char %/% 40L)
-  expr_i = char_i = 1L
+  expr_i = 1L
+  char_i = skip_white(src, i)
 
   # strip out top-level expressions
   while (char_i <= length(src)) {
@@ -18,7 +18,7 @@ parsec = function(file) {
       end_expr = find_end_directive(src, char_i)
       exprs[[expr_i]] = src[char_i:end_expr]
       char_i = end_expr+1L
-
+    } else {
     }
     char_i = skip_white(char_i)
   }
@@ -68,11 +68,28 @@ skip_white = function(txt, i) {
   return(i)
 }
 
-#
 # initial position is at the # of a preprocessor directive. to find the end:
-#   - TODO: for ifdef, ifndef, if, there could be nesting of directives
+#   - for ifdef, ifndef, if, there could be nesting of directives
 #   - for all others, end at the next newline (continuations are already removed)
+# reference: https://gcc.gnu.org/onlinedocs/gcc-3.3.6/cpp/The-preprocessing-language.html
 find_end_directive = function(txt, i) {
-  while (txt[i] != '\n') { i = i+1L }
+  # whitespace allowed after #; we land on the first character after #
+  i = skip_white(txt, i+1L)
+  if (txt[i] == 'i' && txt[i+1L] == 'f') {
+    i = i+2L
+    n_if = 1L
+    # each iteration finds the next # anchor until it's an endif.
+    #   other ifs found along the way increase the nesting
+    while (n_if > 0L) {
+      while (txt[i] != '#') { i=i+1L }
+      i = skip_white(txt, i+1L)
+      if (all(txt[i + 0:4] == c('e','n','d','i','f'))) { i=i+5L; n_if=n_if-1L }
+      else if (txt[i] == 'i' && txt[i+1L] == 'f')   { i=i+2L; n_if=n_if+1L }
+    }
+  }
+  while (txt[i] != '\n') { i=i+1L }
   return( i-1L )
 }
+
+# reference https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Identifiers
+INDENTIFIER_REX = '[a-zA-Z_][a-zA-Z_0-9]*'
