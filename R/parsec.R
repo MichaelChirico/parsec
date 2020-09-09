@@ -63,6 +63,7 @@ preprocess = function(txt) {
   i = 1L
   while (i <= remaining) {
     if (txt[i] == '/' && txt[i+1L] == '/') {
+      # TODO: this doesn't handle line continuations
       j = i+2L
       while (txt[j] != '\n') { j=j+1L }
       txt = c(txt[1:(i-1L)], txt[j:remaining])
@@ -75,11 +76,7 @@ preprocess = function(txt) {
     } else if (txt[i] == '"' || txt[i] == "'") {
       # bump ourselves outside of char/char array literals so
       #   we're sure any other \ we find is for line continuation
-      delim = txt[i]
-      i = i+1L
-      while (txt[i] != delim && txt[i-1L] != '\\') { i=i+1L }
-      # now bump past delim
-      i = i+1L
+      i = skip_quoted(txt, i, txt[i])
     } else if (txt[i] == '\\') {
       # overwrite from line continuation to newline with blanks;
       #   use ' ' not '' so skip_white doesn't need special handling
