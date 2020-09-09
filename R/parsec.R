@@ -25,32 +25,32 @@ parsec = function(file) {
         end_expr = skip_white(src, skip_identifier(src, end_expr))
         # function call definition, or function prototype
         if (src[end_expr] == '(') {
-          n_lparen = 1L
-          while (n_lparen > 0L) {
-            end_expr = end_expr + 1L
-            if (src[end_expr] == ')') n_lparen = n_lparen-1L
-            else if (src[end_expr] == '(') n_lparen = n_lparen+1L
-          }
+          end_expr = skip_pair_delim(src, end_expr, '(')
           end_expr = skip_white(src, end_expr+1L)
           # function call definition
           if (src[end_expr] == '{') {
-            n_lbracket = 1L
-            while (n_lbracket > 0L) {
-              end_expr = end_expr + 1L
-              if (src[end_expr] == '}') n_lbracket = n_lbracket-1L
-              else if (src[end_expr] == '{') n_lbracket = n_lbracket+1L
-            }
+            end_expr = skip_pair_delim(src, end_expr, '{')
           # function prototype
           } else if (src[end_expr] != ';') stop("I'm not sure this is possible?")
           exprs[[expr_i]] = src[char_i:end_expr]
           expr_i = expr_i+1L
           char_i = end_expr+1L
           break
-        } else if (src[end_expr] == '{') {
+        # [...]: an array declaration or index
+        # {...}: enum/union/struct/typedef/literal array declaration
+        #   just skip past these & continue searching for end of expression in next pass
+        } else if (src[end_expr] == '{' || src[end_expr] == '[') {
+          end_expr = skip_pair_delim(src, end_expr, scr[end_expr])+1L
+        # variable definition (e.g. static variables)
+        } else if (src[end_expr] == ';') {
+          exprs[[expr_i]] = src[char_i:end_expr]
+          expr_i = expr_i+1L
+          char_i = end_expr+1L
+          break
         }
       }
     }
-    char_i = skip_white(char_i)
+    char_i = skip_white(src, char_i)
   }
 }
 
@@ -78,11 +78,14 @@ preprocess = function(txt) {
       delim = txt[i]
       i = i+1L
       while (txt[i] != delim && txt[i-1L] != '\\') { i=i+1L }
+      # now bump past delim
+      i = i+1L
     } else if (txt[i] == '\\') {
-      # overwrite from line continuation to newline with blanks
+      # overwrite from line continuation to newline with blanks;
+      #   use ' ' not '' so skip_white doesn't need special handling
       j = i+1L
       while (txt[j] != '\n') { j=j+1L }
-      txt[i:j] = ''
+      txt[i:j] = ' '
     } else {
       i = i+1L
     }
@@ -92,10 +95,10 @@ preprocess = function(txt) {
 
 WHITESPACE_REX = '[ \t\n]'
 # move the "cursor" along until non-whitespace is found.
-#   intended to be used at the beginning of an expression
+#   return the first index past the whitespace
 skip_white = function(txt, i) {
   n = length(txt)
-  while (i <= n && grepl(WHITESPACE_REX, txt[i])) {i = i+1L}
+  while (i <= n && grepl(WHITESPACE_REX, txt[i])) { i = i+1L }
   return(i)
 }
 
@@ -108,6 +111,28 @@ skip_identifier = function(txt, i) {
   n = length(txt)
   while (i <= n && grepl(IDENTIFIER_REX1, txt[i])) { i=i+1L }
   return(i)
+}
+
+# find the end of a pair of delimiters
+skip_pair_delim = function(txt, i, ldelim) {
+  n_ldelim = 1L
+  rdelim = switch(ldelim, '('=')', '{'='}', '['=']')
+  while (n_ldelim > 0L) {
+    i = i+1L
+    if (txt[i] == rdelim)      n_ldelim = n_ldelim-1L
+    else if (txt[i] == ldelim) n_ldelim = n_ldelim+1L
+    else if (txt[i] == '"' || txt[i] == "'") i = skip_quoted(txt, i, txt[i])
+  }
+  return(i)
+}
+
+# like skip_pair_delim, but has to be cognizant of escaping;
+#   also land _after_ the matched delim,
+#   whereas skip_pair_delim lands _on_ the matched delim
+skip_quoted = function(txt, i, delim) {
+  i = i+1L
+  while (txt[i] != delim && txt[i-1L] != '\\') { i=i+1L }
+  return(i+1L)
 }
 
 # initial position is at the # of a preprocessor directive. to find the end:
