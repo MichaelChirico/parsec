@@ -4,14 +4,16 @@ parsec = function(file) {
   if (tail(src, 1L) != '\n') src = c(src, '\n')
   src = preprocess(src)
   n_char = length(src)
+  n_expr = n_char %/% 40L
 
   # (i think) conservative guess of 40 characters/expression up front
-  exprs = vector('list', n_char %/% 40L)
+  exprs = vector('list', n_expr)
   expr_i = 1L
-  char_i = skip_white(src, i)
+  char_i = skip_white(src, 1L)
 
   # strip out top-level expressions
   while (char_i <= length(src)) {
+    if (expr_i > length(exprs)) exprs = c(exprs, vector('list', n_expr))
     # pre-processor directives
     if (src[char_i] == '#') {
       end_expr = find_end_directive(src, char_i)
@@ -52,6 +54,27 @@ parsec = function(file) {
     }
     char_i = skip_white(src, char_i)
   }
+  # drop empty exprs
+  exprs[vapply(exprs, is.null, NA)] = NULL
+  lapply(exprs, parse_c_expr)
+}
+
+parse_c_expr = function(txt) {
+  if (txt[1L] == '#') return(parse_directive(txt))
+}
+
+parse_directive = function(txt) {
+  # skip whitespace after #
+  char_i = skip_white(txt, 2L)
+  end_directive = skip_identifier(txt, char_i) - 1L
+  directive = paste(txt[char_i:end_directive], collapse='')
+  switch(
+    directive,
+    include = {
+
+    },
+    stop("Unknown preprocessor directive")
+  )
 }
 
 # three preprocessing steps to normalize the code:
