@@ -1,3 +1,4 @@
+# reference: https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html
 parsec = function(file) {
   src = strsplit(readChar(file, file.info(file)$size), NULL)[[1L]]
   # logic below will assume terminal newline
@@ -13,6 +14,7 @@ parsec = function(file) {
 
   # strip out top-level expressions
   while (char_i <= length(src)) {
+    # grow if needed
     if (expr_i > length(exprs)) exprs = c(exprs, vector('list', n_expr))
     # pre-processor directives
     if (src[char_i] == '#') {
@@ -42,7 +44,10 @@ parsec = function(file) {
         # {...}: enum/union/struct/typedef/literal array declaration
         #   just skip past these & continue searching for end of expression in next pass
         } else if (src[end_expr] == '{' || src[end_expr] == '[') {
-          end_expr = skip_pair_delim(src, end_expr, scr[end_expr])+1L
+          end_expr = skip_pair_delim(src, end_expr, src[end_expr])+1L
+        # e.g. comma-separated delcaration: int i1, i2
+        } else if (src[end_expr] == ',') {
+          end_expr = end_expr+1L
         # variable definition (e.g. static variables)
         } else if (src[end_expr] == ';') {
           exprs[[expr_i]] = src[char_i:end_expr]
@@ -61,6 +66,8 @@ parsec = function(file) {
 
 parse_c_expr = function(txt) {
   if (txt[1L] == '#') return(parse_directive(txt))
+  if (grepl(IDENTIFIER_REX0, txt[1L])) {
+  }
 }
 
 # three preprocessing steps to normalize the code:
