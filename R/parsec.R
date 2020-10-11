@@ -35,6 +35,7 @@ parsec = function(file) {
           if (src[end_expr] == '{') {
             end_expr = skip_pair_delim(src, end_expr, '{')
           # function prototype
+            #  TODO: can happen multiply in a line, see data.table.h:125
           } else if (src[end_expr] != ';') stop("I'm not sure this is possible?")
           exprs[[expr_i]] = src[char_i:end_expr]
           expr_i = expr_i+1L
